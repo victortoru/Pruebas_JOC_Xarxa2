@@ -1,5 +1,9 @@
-import java.net.*;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 public class ServerTCP {
     private int port;
@@ -46,6 +50,7 @@ public class ServerTCP {
                     if (!validMove) {
                         out[currentPlayer - 1].println("Invalid move. Try again.");
                     } else {
+                        System.out.println(connect4);
                         out[0].println(connect4);
                         out[1].println(connect4);
 
