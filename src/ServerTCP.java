@@ -1,75 +1,153 @@
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Random;
 
 public class ServerTCP {
-    private int port;
-    private Connect4 connect4;
-    private ServerSocket serverSocket;
+ private static final int COLUMNAS = 7;
+ private static final int FILAS = 6;
+ private static char[][] tablero;
 
-    public ServerTCP(int port) {
-        this.port = port;
-        this.connect4 = new Connect4();
-        this.serverSocket = null;
+ public static void main(String[] args) {
+  try {
+   ServerSocket serverSocket = new ServerSocket(1234);
+   System.out.println("Servidor conectado. Esperando cliente...");
+
+   Socket clientSocket = serverSocket.accept();
+   System.out.println("Cliente conectado.");
+
+   BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+   PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
+
+   tablero = new char[FILAS][COLUMNAS];
+   reiniciarTablero();
+
+   String clientInput;
+   String serverResponse;
+
+   // Enviar tablero inicial al cliente, incluyendo la señal de turno
+   serverResponse = obtenerTableroComoString() + "TU_TURNO";
+   out.println(serverResponse);
+
+   while ((clientInput = in.readLine()) != null) {
+    if (clientInput.equals("SALIR")) {
+     break;
     }
 
-    public void start() {
-        try {
-            serverSocket = new ServerSocket(port);
-            System.out.println("Server started on port " + port);
+    int columna = Integer.parseInt(clientInput);
+    if (esJugadaValida(columna)) {
+     realizarJugada(columna, 'X');
 
-            Socket[] playerSockets = new Socket[2];
-            BufferedReader[] in = new BufferedReader[2];
-            PrintWriter[] out = new PrintWriter[2];
-            int currentPlayer = 1;
+     if (hayGanador('X')) {
+      serverResponse = "¡Has ganado! Felicidades.";
+      out.println(serverResponse);
+      out.println("JUEGO_TERMINADO");
+      break;
+     }
 
-            for (int i = 0; i < 2; i++) {
-                playerSockets[i] = serverSocket.accept();
-                System.out.println("Player " + (i + 1) + " connected");
+     realizarJugadaAleatoria('O');
+     if (hayGanador('O')) {
+      serverResponse = "¡Has perdido! Intenta de nuevo.";
+      out.println(serverResponse);
+      out.println("JUEGO_TERMINADO");
+      break;
+     }
 
-                in[i] = new BufferedReader(new InputStreamReader(playerSockets[i].getInputStream()));
-                out[i] = new PrintWriter(playerSockets[i].getOutputStream(), true);
-                out[i].println("You are player " + (i + 1) + ". Waiting for opponent to connect...");
-            }
-
-            out[0].println("Opponent connected. You are player 1 and you play first");
-            out[1].println("Opponent connected. You are player 2 and you play second");
-
-            boolean gameEnded = false;
-            while (!gameEnded) {
-                String input = in[currentPlayer - 1].readLine();
-
-                if (input != null) {
-                    int column = Integer.parseInt(input);
-
-                    boolean validMove = connect4.addPiece(column);
-
-                    if (!validMove) {
-                        out[currentPlayer - 1].println("Invalid move. Try again.");
-                    } else {
-                        System.out.println(connect4);
-                        out[0].println(connect4);
-                        out[1].println(connect4);
-
-                        if (connect4.isGameOver()) {
-                            gameEnded = true;
-                            out[0].println("Game over!");
-                            out[1].println("Game over!");
-                        } else {
-                            currentPlayer = (currentPlayer == 1) ? 2 : 1;
-                        }
-                    }
-                }
-            }
-
-            playerSockets[0].close();
-            playerSockets[1].close();
-            System.out.println("Game ended. Players disconnected.");
-        } catch (IOException e) {
-            System.err.println("Error: " + e.getMessage());
-        }
+     serverResponse = obtenerTableroComoString() + "TU_TURNO";
+     out.println(serverResponse);
+    } else {
+     serverResponse = "Columna inválida. Intenta de nuevo.";
+     out.println(serverResponse);
     }
+   }
+
+   clientSocket.close();
+   serverSocket.close();
+  } catch (Exception e) {
+   e.printStackTrace();
+  }
+ }
+
+ private static void reiniciarTablero() {
+  for (int i = 0; i < FILAS; i++) {
+   for (int j = 0; j < COLUMNAS; j++) {
+    tablero[i][j] = '-';
+   }
+  }
+ }
+
+ private static boolean esJugadaValida(int columna) {
+  return columna >= 0 && columna < COLUMNAS && tablero[0][columna] == '-';
+ }
+
+ private static void realizarJugada(int columna, char ficha) {
+  for (int i = FILAS - 1; i >= 0; i--) {
+   if (tablero[i][columna] == '-') {
+    tablero[i][columna] = ficha;
+    break;
+   }
+  }
+ }
+
+ private static void realizarJugadaAleatoria(char ficha) {
+  Random random = new Random();
+  int columna;
+  do {
+   columna = random.nextInt(COLUMNAS);
+  } while (!esJugadaValida(columna));
+  realizarJugada(columna, ficha);
+ }
+
+ private static boolean hayGanador(char ficha) {
+  // Comprobar en vertical
+  for (int i = 0; i <= FILAS - 4; i++) {
+   for (int j = 0; j < COLUMNAS; j++) {
+    if (tablero[i][j] == ficha && tablero[i + 1][j] == ficha && tablero[i + 2][j] == ficha && tablero[i + 3][j] == ficha) {
+     return true;
+    }
+   }
+  }
+
+  // Comprobar en horizontal
+  for (int i = 0; i < FILAS; i++) {
+   for (int j = 0; j <= COLUMNAS - 4; j++) {
+    if (tablero[i][j] == ficha && tablero[i][j + 1] == ficha && tablero[i][j + 2] == ficha && tablero[i][j + 3] == ficha) {
+     return true;
+    }
+   }
+  }
+
+  // Comprobar en diagonal ascendente (/)
+  for (int i = 3; i < FILAS; i++) {
+   for (int j = 0; j <= COLUMNAS - 4; j++) {
+    if (tablero[i][j] == ficha && tablero[i - 1][j + 1] == ficha && tablero[i - 2][j + 2] == ficha && tablero[i - 3][j + 3] == ficha) {
+     return true;
+    }
+   }
+  }
+
+  // Comprobar en diagonal descendente (\)
+  for (int i = 3; i < FILAS; i++) {
+   for (int j = 3; j < COLUMNAS; j++) {
+    if (tablero[i][j] == ficha && tablero[i - 1][j - 1] == ficha && tablero[i - 2][j - 2] == ficha && tablero[i - 3][j - 3] == ficha) {
+     return true;
+    }
+   }
+  }
+
+  return false;
+ }
+
+ private static String obtenerTableroComoString() {
+  StringBuilder sb = new StringBuilder();
+  for (int i = 0; i < FILAS; i++) {
+   for (int j = 0; j < COLUMNAS; j++) {
+    sb.append(tablero[i][j]).append(' ');
+   }
+   sb.append('\n');
+  }
+  return sb.toString();
+ }
 }
